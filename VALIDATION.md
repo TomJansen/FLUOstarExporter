@@ -2,11 +2,11 @@
 
 ## Current build
 
-The current local build includes the separate **Measurement type** column, corrected BMG technique-code mapping, optical labels for endpoint and kinetic exports, wavelength headers for kinetic spectra, and spatial scan-field labels. Script comments are not used to classify or group measurements. Version resources remain 1.2; this report does not describe a newly published release.
+The current local build includes the separate **Measurement type** column, corrected BMG technique-code mapping, optical labels for endpoint and kinetic exports, wavelength headers for kinetic spectra, and spatial scan-field labels. Script comments are not used to classify or group measurements. Version resources are set to 1.3 for the `v1.3` release.
 
 Executable: `dist/FLUOstarExporter.exe`, 32-bit Windows GUI, subsystem 6.1.
 
-SHA-256: `d167a78219172e3b2668fe6ac9c51830511619949db4c58e8d6bb10a3d27102d`.
+SHA-256: `55a0bcc11b06780e0af84ae6552a8cd60bb5b3e45b7b3d275b87e590dafd31e5`.
 
 ## Checks completed
 
