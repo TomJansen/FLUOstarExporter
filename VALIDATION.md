@@ -1,6 +1,10 @@
 # Validation — 2026-10-21
 
-Artifact: v1.3.3 `dist/FLUOstarExporter.exe`, 32-bit Windows GUI executable, subsystem 6.1.
+Release v1.0 uses `YYYYMMDD_HHMMSS_ProtocolName` filenames and version resources set to 1.0. Core regression checks passed for the filename change, including CSV/XLSX names and collision handling.
+
+The report below records the earlier development build labelled v1.3.3. Its checksum and Windows UI results refer to that build. Packaged builds include their own executable checksum in `SHA256SUMS.txt`.
+
+Development artifact: v1.3.3 `dist/FLUOstarExporter.exe`, 32-bit Windows GUI executable, subsystem 6.1.
 
 SHA-256: `2c0922a2a9ce522d17409d5e9bda87a189c70a99c575fc2180eeadb1a3b27789`
 

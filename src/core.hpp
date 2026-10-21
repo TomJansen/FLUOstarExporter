@@ -471,7 +471,7 @@ inline Exported exportRun(const Run &run, const fs::path &output,
     date.erase(std::remove(date.begin(), date.end(), '-'), date.end());
     std::string time = run.stamp.substr(11);
     time.erase(std::remove(time.begin(), time.end(), ':'), time.end());
-    std::string stem = safeName(run.protocol) + "_" + date + "_" + time;
+    std::string stem = date + "_" + time + "_" + safeName(run.protocol);
     std::string extension = format == ExportFormat::Xlsx ? ".xlsx" : ".csv";
     auto dest = output / fs::u8path(stem + extension);
     for (unsigned i = 0; fs::exists(dest); ++i)

@@ -20,10 +20,10 @@ No installation, administrator access, Excel, Python, .NET, MARS, BDE, or databa
 
 ## Filenames
 
-Files use the recorded measurement date and time:
+Files start with the recorded measurement date and time, followed by the protocol name (`YYYYMMDD_HHMMSS_ProtocolName`):
 
 ```text
-Example Protocol_20261021_143000.xlsx
+20261021_143000_Example Protocol.xlsx
 ```
 
 CSV exports use the same name with a `.csv` extension. Protocol names come from `TSTNAME`, which may already be shortened in the database. Invalid Windows filename characters become underscores, trailing spaces and periods are removed, and long protocol names are shortened.
@@ -95,13 +95,13 @@ The LLVM i686 runtime requires LLVM's linker; GNU ld is not supported by this bu
 
 ### GitHub Actions
 
-[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.3.3`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
+[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.0`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
 
 To publish a version, first commit and push your changes, then tag that commit:
 
 ```sh
-git tag v1.3.3
-git push origin v1.3.3
+git tag v1.0
+git push origin v1.0
 ```
 
 Use a new version tag for each release and update `src/app.rc` to match the release version before committing.

@@ -23,11 +23,15 @@ int main(int argc, char **argv) {
         auto it = std::find_if(runs.begin(), runs.end(), [](auto &r) { return r.available; });
         require(it != runs.end(), "No available fixture run");
         auto run = *it;
+        run.protocol = "Example Protocol";
+        run.stamp = "2026-10-21 14:30:00";
         auto original = readDbf(run.data);
         fs::path out = argv[2];
         require(!fs::exists(out), "Use a new temporary test folder");
         fs::create_directories(out);
         auto a = exportRun(run, out), b = exportRun(run, out);
+        require(a.path.filename() == "20261021_143000_Example Protocol.csv",
+                "CSV filename must start with measurement date and time");
         require(a.path != b.path, "Collision overwrote export");
         require(a.records > 0 && b.records == a.records, "Compact measurement count");
         require(timestamp("2024/01/23", "12:34:56") == "2024-01-23 12:34:56", "Date format");
@@ -113,7 +117,9 @@ int main(int argc, char **argv) {
                 "Deleted records not skipped");
         fails([&] { readDbf(out / L"absent.dbf"); });
         auto x = exportRun(run, out, ExportFormat::Xlsx);
-        require(x.path.extension() == ".xlsx" && x.records == a.records, "XLSX export");
+        require(x.path.filename() == "20261021_143000_Example Protocol.xlsx" &&
+                    x.records == a.records,
+                "XLSX filename must start with measurement date and time");
         require(columnName(0) == "A" && columnName(25) == "Z" && columnName(26) == "AA" &&
                     columnName(16383) == "XFD",
                 "Excel column names");
