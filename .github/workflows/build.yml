@@ -1,0 +1,68 @@
+name: Build Windows portable app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Linux cross-compiler
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          archive=llvm-mingw-20241001-msvcrt-ubuntu-20.04-x86_64
+          curl --fail --location --retry 3 "https://github.com/mstorsjo/llvm-mingw/releases/download/20241001/$archive.tar.xz" -o "$RUNNER_TEMP/toolchain.tar.xz"
+          tar -xJf "$RUNNER_TEMP/toolchain.tar.xz" -C "$RUNNER_TEMP"
+          echo "LLVM_MINGW_MSVCRT=$RUNNER_TEMP/$archive" >> "$GITHUB_ENV"
+      - name: Install Windows compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = 'llvm-mingw-20241001-msvcrt-x86_64'
+          Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/20241001/$archive.zip" -OutFile "$env:RUNNER_TEMP/toolchain.zip"
+          Expand-Archive "$env:RUNNER_TEMP/toolchain.zip" -DestinationPath $env:RUNNER_TEMP
+          "LLVM_MINGW_MSVCRT=$env:RUNNER_TEMP/$archive" >> $env:GITHUB_ENV
+      - name: Build and package on Linux
+        if: runner.os == 'Linux'
+        run: bash tools/build.sh
+      - name: Build and package on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: tools\build.cmd
+      - name: Generate synthetic test database
+        run: python tools/make_test_fixture.py build/test-fixture
+      - name: Test parser and exports on Linux
+        if: runner.os == 'Linux'
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror tools/core_tests.cpp -o build/core-tests
+          build/core-tests build/test-fixture build/test-output
+      - name: Test parser and exports on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:LLVM_MINGW_MSVCRT/bin/i686-w64-mingw32-clang++.exe" -std=c++17 -O2 -Wall -Wextra -Werror -static tools/core_tests.cpp -o build/core-tests.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./build/core-tests.exe build/test-fixture build/test-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-portable-built-on-${{ matrix.os }}
+          path: FLUOstarExporter-portable.zip
+          if-no-files-found: error

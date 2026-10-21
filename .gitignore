@@ -1,0 +1,24 @@
+# Local settings can contain machine and USB paths
+FLUOstarExporter.ini
+
+# Generated build and release artifacts
+/build/
+/dist/
+*.o
+*.obj
+*.exe
+*.dll
+*.ocx
+*.bpl
+*.sys
+*.lib
+*.zip
+*.partial
+*.partial.lock/
+
+# Editor and operating-system files
+.DS_Store
+*.log
+__pycache__/
+*.py[cod]
+
