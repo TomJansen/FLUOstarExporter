@@ -474,9 +474,8 @@ inline Exported exportRun(const Run &run, const fs::path &output,
     std::string stem = date + "_" + time + "_" + safeName(run.protocol);
     std::string extension = format == ExportFormat::Xlsx ? ".xlsx" : ".csv";
     auto dest = output / fs::u8path(stem + extension);
-    for (unsigned i = 0; fs::exists(dest); ++i)
-        dest = output / fs::u8path(stem + "_run" + run.id + (i ? "_" + std::to_string(i + 1) : "") +
-                                   extension);
+    for (unsigned i = 1; fs::exists(dest); ++i)
+        dest = output / fs::u8path(stem + "_" + std::to_string(i) + extension);
     auto temporary = dest;
     temporary += ".partial";
     // Reserve a temporary name without opening or truncating an existing file.

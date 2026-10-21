@@ -29,10 +29,12 @@ int main(int argc, char **argv) {
         fs::path out = argv[2];
         require(!fs::exists(out), "Use a new temporary test folder");
         fs::create_directories(out);
-        auto a = exportRun(run, out), b = exportRun(run, out);
+        auto a = exportRun(run, out), b = exportRun(run, out), c = exportRun(run, out);
         require(a.path.filename() == "20261021_143000_Example Protocol.csv",
                 "CSV filename must start with measurement date and time");
-        require(a.path != b.path, "Collision overwrote export");
+        require(b.path.filename() == "20261021_143000_Example Protocol_1.csv" &&
+                    c.path.filename() == "20261021_143000_Example Protocol_2.csv",
+                "Duplicate CSV filenames must use sequential suffixes");
         require(a.records > 0 && b.records == a.records, "Compact measurement count");
         require(timestamp("2024/01/23", "12:34:56") == "2024-01-23 12:34:56", "Date format");
         fails([] { timestamp("23/01/2024", "12:34:56"); });
@@ -120,6 +122,11 @@ int main(int argc, char **argv) {
         require(x.path.filename() == "20261021_143000_Example Protocol.xlsx" &&
                     x.records == a.records,
                 "XLSX filename must start with measurement date and time");
+        auto x1 = exportRun(run, out, ExportFormat::Xlsx);
+        auto x2 = exportRun(run, out, ExportFormat::Xlsx);
+        require(x1.path.filename() == "20261021_143000_Example Protocol_1.xlsx" &&
+                    x2.path.filename() == "20261021_143000_Example Protocol_2.xlsx",
+                "Duplicate XLSX filenames must use sequential suffixes");
         require(columnName(0) == "A" && columnName(25) == "Z" && columnName(26) == "AA" &&
                     columnName(16383) == "XFD",
                 "Excel column names");

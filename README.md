@@ -10,7 +10,7 @@ A portable Windows app that exports FLUOstar OMEGA measurements to Excel or CSV.
 4. Choose **Export to**. The default is an `Exports` folder beside the executable.
 5. Choose **Excel (.xlsx)** or **CSV (.csv)** under **Format**, select runs, and click **Export selected to XLSX** or **Export selected to CSV**.
 
-Click a row to select it. **Shift-click** selects a range; **Ctrl-click** adds or removes individual rows. **Select all**, or **Ctrl+A** with the run list focused, selects all visible runs. **Clear** clears the selection. Search covers every displayed column, and clicking a column heading sorts the list. Only highlighted, visible runs are exported. **Refresh** reloads the database after new runs finish.
+Click a row to select it. **Shift-click** selects a range; **Ctrl-click** adds or removes individual rows. **Select all**, or **Ctrl+A** with the run list focused, selects all visible runs. **Clear** clears the selection. Search covers every displayed column, and clicking a column heading sorts the list. Only highlighted, visible runs are exported. The run list remains scrollable during and after export. The selected runs are captured when you click Export. **Refresh** reloads the database after new runs finish.
 
 The app saves the format, database path, and output folder in `FLUOstarExporter.ini` beside the executable. The chosen format applies to all selected runs. The default `Exports` folder follows the executable if the USB drive letter changes; custom paths are saved as absolute paths.
 
@@ -28,7 +28,7 @@ Files start with the recorded measurement date and time, followed by the protoco
 
 CSV exports use the same name with a `.csv` extension. Protocol names come from `TSTNAME`, which may already be shortened in the database. Invalid Windows filename characters become underscores, trailing spaces and periods are removed, and long protocol names are shortened.
 
-Existing exports are preserved. Duplicate names gain `_run<ID>`, then a number if needed. The final file appears after writing succeeds. An interrupted export can leave a `.partial` file or `.partial.lock` folder. After closing any exporter using that output folder, remove those unfinished entries before retrying, or choose another output folder.
+Existing exports are preserved. Duplicate names gain `_1`, `_2`, and so on before the extension. The final file appears after writing succeeds. An interrupted export can leave a `.partial` file or `.partial.lock` folder. After closing any exporter using that output folder, remove those unfinished entries before retrying, or choose another output folder.
 
 ## Excel and CSV contents
 
@@ -95,13 +95,13 @@ The LLVM i686 runtime requires LLVM's linker; GNU ld is not supported by this bu
 
 ### GitHub Actions
 
-[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.0`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
+[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.1`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
 
 To publish a version, first commit and push your changes, then tag that commit:
 
 ```sh
-git tag v1.0
-git push origin v1.0
+git tag v1.1
+git push origin v1.1
 ```
 
 Use a new version tag for each release and update `src/app.rc` to match the release version before committing.
@@ -125,11 +125,7 @@ python3 tools/make_test_fixture.py build/test-fixture
 build/core-tests build/test-fixture build/test-output
 ```
 
-Both fixture and output directories must be new. The full verifier reports indexed runs with missing files as failures. `tools/ui_smoke.cpp` is a Windows UI integration harness. Keep database fixtures and test exports outside version control.
-
-## Publishing and privacy
-
-Instrument installations, databases, exports, and used `FLUOstarExporter.ini` files can contain private measurements, names, comments, sample labels, and local paths. Do not commit them. Keep private data outside the repository. The `.gitignore` excludes local settings, compiled binaries, build output, and release archives. Check package contents before publishing compiled packages through GitHub Releases.
+Both fixture and output directories must be new. The full verifier reports indexed runs with missing files as failures. `tools/ui_smoke.cpp` is a Windows UI integration harness.
 
 ## License
 

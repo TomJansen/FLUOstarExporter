@@ -153,14 +153,35 @@ int wmain(int argc, wchar_t **argv) {
     SendMessageW(h, WM_COMMAND, 107, 0);
     if (!IsWindowEnabled(GetDlgItem(h, 109)))
         return 7;
+    // Keep the selected run but restore the full list so it can scroll while exporting.
+    SendMessageW(GetDlgItem(h, 103), WM_SETTEXT, 0, (LPARAM)L"");
+    auto hoverScrolls = [&] {
+        if (!IsWindowEnabled(table))
+            return false;
+        SendMessageW(table, LVM_ENSUREVISIBLE, 0, FALSE);
+        POINT point{20, 80};
+        ClientToScreen(table, &point);
+        for (int i = 0; i < 3; ++i)
+            SendMessageW(h, WM_MOUSEWHEEL, MAKEWPARAM(0, -WHEEL_DELTA),
+                         MAKELPARAM(point.x, point.y));
+        return SendMessageW(table, LVM_GETTOPINDEX, 0, 0) > 0;
+    };
     SendMessageW(h, WM_COMMAND, 109, 0);
+    if (!hoverScrolls())
+        return 29;
     if (!waitText(GetDlgItem(h, 206), L"0 failed.", 60000))
         return 8;
+    if (!hoverScrolls())
+        return 30;
     SendMessageW(GetDlgItem(h, 111), CB_SETCURSEL, 1, 0);
     SendMessageW(h, WM_COMMAND, MAKEWPARAM(111, CBN_SELCHANGE), (LPARAM)GetDlgItem(h, 111));
     SendMessageW(h, WM_COMMAND, 109, 0);
+    if (!hoverScrolls())
+        return 29;
     if (!waitText(GetDlgItem(h, 206), L"0 failed.", 60000))
         return 10;
+    if (!hoverScrolls())
+        return 31;
     SendMessageW(h, WM_CLOSE, 0, 0);
     if (WaitForSingleObject(pi.hProcess, 5000) != WAIT_OBJECT_0)
         return 26;
@@ -190,7 +211,7 @@ int wmain(int argc, wchar_t **argv) {
         return 27;
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
-    wprintf(L"PASS: source load, hover scrolling, Shift-click range, Ctrl-click, clear, status/ID search, "
+    wprintf(L"PASS: source load, hover scrolling before/during/after export, Shift-click range, Ctrl-click, clear, status/ID search, "
             L"select-all, XLSX/CSV exports, saved source/format on restart, clean process exit\n");
     return 0;
 }

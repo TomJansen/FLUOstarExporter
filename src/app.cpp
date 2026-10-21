@@ -322,7 +322,7 @@ static void exporting() {
     EnableWindow(sourceEdit, FALSE);
     EnableWindow(outputEdit, FALSE);
     EnableWindow(searchEdit, FALSE);
-    EnableWindow(list, FALSE);
+    // The worker uses a snapshot of the selection; keep the list available for scrolling.
     EnableWindow(formatCombo, FALSE);
     EnableWindow(GetDlgItem(mainWindow, CANCEL), TRUE);
     SetWindowTextW(statusLabel, L"Exporting... Files appear after each run finishes.");
@@ -541,7 +541,6 @@ static LRESULT CALLBACK windowProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         EnableWindow(sourceEdit, TRUE);
         EnableWindow(outputEdit, TRUE);
         EnableWindow(searchEdit, TRUE);
-        EnableWindow(list, TRUE);
         EnableWindow(formatCombo, TRUE);
         counts();
         auto s = std::to_wstring(r->succeeded) + L" files exported (" +
