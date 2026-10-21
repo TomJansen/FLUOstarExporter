@@ -87,7 +87,10 @@ The catalogue has many protocol and instrument-setting fields. Only a small stab
 | `MESSDATEI` | Numeric run identifier and numbered DBF filename stem. |
 | `TSTNAME` | Protocol name; used in the output filename. |
 | `DATE`, `TIME` | Recorded run date and time. Dates accept `YYYY-MM-DD`, `YYYY/MM/DD`, `YYYY.MM.DD`, or the DBF date form `YYYYMMDD`; times use `HH:MM:SS`. Invalid calendar dates are rejected. |
-| `MESSTYP` | Numeric measurement-mode code. |
+| `MESSTYP` | Numeric measurement-technique code; mapped using the bundled BMG MARS definitions below. |
+| `KINETICS`, `KINETICS2`–`KINETICS4` | Stored cycle counts. The exporter totals nonempty numeric fields to distinguish single from multiple cycles; missing, zero-total, or invalid counts show an unknown measurement type. |
+| `MODE` | Acquisition layout; `50` identifies a spatial well scan. |
+| `EXFILT`, `EMFILT` | Tab-separated optical settings. These supply filter labels and, for absorbance, wavelength selections. |
 | `MPNAME` | Plate definition/name. |
 | `USER` | Stored instrument user. |
 | `IDNUMBER` | Run comment shown as ID1. |
@@ -95,25 +98,30 @@ The catalogue has many protocol and instrument-setting fields. Only a small stab
 | `IDNUMBER3` | Run comment shown as ID3. |
 | `KOMMENTAR` | Protocol comment. |
 
-Observed `MESSTYP` values used by the UI are:
+The `MESSTYP` mapping below follows `tpMessTypID` in the supplied BMG MARS `Config/Omega/DbMap.xml`, whose `SP_MeasTyp` rule reads `MESSTYP` directly. The earlier exporter mapping incorrectly called mode 3 luminescence and mode 1 absorbance.
 
 | Value | Displayed technique |
 |---:|---|
 | 0 | FI |
-| 1 | Absorbance |
+| 1 | FI (multi) |
 | 2 | FP |
-| 3 | Luminescence |
-| 4 | Dual luminescence |
-| 5 | Dual FI |
+| 3 | Absorbance |
+| 4 | Luminescence |
+| 5 | Nephelometry |
 | 6 | TRF (2 channels) |
-| 7 | AlphaScreen |
-| 8 | TRF |
+| 7 | Dual luminescence |
+| 8 | Dual FI |
+| 9 | AlphaScreen |
+| 10 | TRF |
 | 11 | Absorbance spectrum |
-| 12 | Nephelometry |
 
-Unknown values remain visible as `Mode <value>`. These labels are the exporter's mapping of observed codes, rather than a complete vendor specification.
+Unmapped values remain visible as `Mode <value>`; the vendor maps code 12 to undefined.
 
-Other catalogue groups include filter and gain settings, kinetic timing, shaking, injection/pump configuration, plate geometry, temperature targets, reader identity, firmware version, calibration values, and memo references. They are retained only while the run index is in memory and are not copied wholesale into the compact export.
+`EXFILT` and `EMFILT` contain tab-separated optical settings. The vendor map identifies these as excitation/emission settings for fluorescence and as wavelength selections for absorbance. The exporter retains filter names such as `485-12` literally; it does not interpret the suffix or convert a filter designation into a single wavelength. For absorbance (mode 3), numeric `EXFILT` selections supply wavelengths when a measurement table has no `WAVELENGTH` field. Channel numbers select entries in the stored order. A single stored setting applies to each chromatic selection. Luminescence (mode 4) uses emission settings without interpreting `EXFILT` as excitation. Multi-detector techniques retain their raw channel IDs and optical-setting metadata; detector A/B mappings are not inferred.
+
+The separate **Measurement type** column uses the stored `KINETICS` fields to distinguish single measurements from kinetic protocols. It does not use script labels or combine separate runs. This cycle-count classification does not assert that the count equals the number of stored measurement fields; run 11 records `KINETICS = 8` but has 32 stored time points. `MODE = 50` identifies a well scan: its multiple measurement fields are spatial scan values, not kinetic times.
+
+Other catalogue groups include gain settings, kinetic timing, shaking, injection/pump configuration, plate geometry, temperature targets, reader identity, firmware version, calibration values, and memo references. The exporter does not copy those settings wholesale into the compact export.
 
 ## Numbered DBFs: measurement tables
 
@@ -128,7 +136,7 @@ Numbered tables vary by measurement mode. The exporter discovers columns from ea
 | `WAVELENGTH` | Optional wavelength axis for spectrum runs. |
 | `PATHLENGTH` | Optional stored path-length value. |
 | `M1`, `M2`, … | Measurement values or points, in physical DBF field order. |
-| `M1_1`, `M1_2`, … | Alternate continuation naming observed in very long kinetic tables. |
+| `M1_1`, `M1_2`, … | Continuation naming observed in well scanning; not evidence of kinetics on its own. |
 | `TIME` | Stored time value; used as the row axis when repeated well/channel records indicate kinetics. |
 | `TEMP` | Stored temperature value. |
 | `KONZ_CHAR`, `KONZ_MANT` | Stored concentration components used by the vendor software. |
@@ -151,10 +159,10 @@ The output begins with selected catalogue metadata. The numbered DBF is then piv
 |---|---|
 | `WAVELENGTH` plus one measurement field | One row per wavelength/channel; one column per well. |
 | One measurement field with repeated well/channel pairs | One row per stored time/channel; one column per well. Duplicate cells are rejected, including duplicates whose first value is blank. |
-| One measurement field without repeated pairs | One row per channel; one column per well. |
-| Multiple measurement fields | One row per measurement point; one column per well/channel. A technical `CH = t` row supplies the time labels when present. |
+| One measurement field without repeated pairs | One row per channel or mapped absorbance wavelength; one column per well. FI/TRF optical settings accompany the channel. |
+| Multiple measurement fields | One row per measurement point; one column per well/channel. A single complete technical `CH = t` row supplies the time labels. Explicit or mapped absorbance wavelengths label the columns; FI/TRF filter labels accompany channel identities. |
 
-In single-measurement-field layouts, duplicate wavelength/time/channel and well combinations are rejected rather than overwritten.
+Well scans use `Scan field` rows containing the stored measurement field names. Spatial coordinates are not reconstructed. Incomplete kinetic timing rows fall back to measurement field identities. Duplicate timing records, conflicting well labels, missing wavelengths, and duplicate measurement coordinates are rejected rather than silently relabelled or overwritten.
 
 The measurement values are copied from the numbered DBF without recalculation. The exporter does not evaluate MARS curve fits, blank-subtraction workflows, memo objects, or other analysis definitions.
 

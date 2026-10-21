@@ -138,25 +138,40 @@ inline Table readDbf(const fs::path &path, bool allowMemo = false) {
     return t;
 }
 struct Run {
-    std::string id, protocol, stamp, technique, user, plate, protocolComment, id1, id2, id3;
+    std::string id, protocol, stamp, technique, measurementType, user, plate, protocolComment, id1, id2, id3;
     std::map<std::string, std::string> meta;
     fs::path data;
     bool available = false;
 };
 inline std::string technique(const std::string &s) {
-    static const std::map<std::string, std::string> names = {{"0", "FI"},
-                                                             {"1", "Absorbance"},
-                                                             {"2", "FP"},
-                                                             {"3", "Luminescence"},
-                                                             {"4", "Dual luminescence"},
-                                                             {"5", "Dual FI"},
-                                                             {"6", "TRF (2 channels)"},
-                                                             {"7", "AlphaScreen"},
-                                                             {"8", "TRF"},
-                                                             {"11", "Absorbance spectrum"},
-                                                             {"12", "Nephelometry"}};
+    // BMG MARS Config/Omega/DbMap.xml: tpMessTypID (MESSTYP).
+    static const std::map<std::string, std::string> names = {
+        {"0", "FI"}, {"1", "FI (multi)"}, {"2", "FP"}, {"3", "Absorbance"},
+        {"4", "Luminescence"}, {"5", "Nephelometry"}, {"6", "TRF (2 channels)"},
+        {"7", "Dual luminescence"}, {"8", "Dual FI"}, {"9", "AlphaScreen"},
+        {"10", "TRF"}, {"11", "Absorbance spectrum"}};
     auto it = names.find(s);
     return it == names.end() ? "Mode " + s : it->second;
+}
+inline std::string measurementKind(const Table &table, const Row &row) {
+    unsigned cycles = 0;
+    bool known = !table.get(row, "KINETICS").empty();
+    for (auto name : {"KINETICS", "KINETICS2", "KINETICS3", "KINETICS4"}) {
+        auto value = table.get(row, name);
+        if (value.empty())
+            continue;
+        if (value.find_first_not_of("0123456789") != value.npos) {
+            known = false;
+            break;
+        }
+        // Only the distinction between zero, one and multiple cycles is needed.
+        unsigned count = 0;
+        for (char digit : value)
+            count = std::min(2U, count * 10 + unsigned(digit - '0'));
+        cycles = std::min(2U, cycles + count);
+    }
+    return !known || cycles == 0 ? "Measurement type unknown"
+           : cycles > 1 ? "Kinetic" : "Single measurement";
 }
 inline std::string timestamp(std::string d, std::string t) {
     if (d.size() == 8)
@@ -205,6 +220,7 @@ inline std::vector<Run> loadRuns(const fs::path &folder) {
         run.protocol = t.get(r, "TSTNAME");
         run.stamp = timestamp(t.get(r, "DATE"), t.get(r, "TIME"));
         run.technique = technique(t.get(r, "MESSTYP"));
+        run.measurementType = measurementKind(t, r);
         run.user = t.get(r, "USER");
         run.plate = t.get(r, "MPNAME");
         run.protocolComment = t.get(r, "KOMMENTAR");
@@ -300,6 +316,57 @@ inline void addCompactRow(CompactExport &result, Row row, std::vector<bool> nume
     result.numeric.push_back(std::move(numeric));
 }
 
+inline std::string runSetting(const Run &run, const std::string &key) {
+    auto it = run.meta.find(key);
+    return it == run.meta.end() ? std::string() : it->second;
+}
+inline std::vector<std::string> filterSettings(const std::string &value) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    for (;;) {
+        auto end = value.find('\t', start);
+        result.push_back(trim(value.substr(start, end == value.npos ? end : end - start)));
+        if (end == value.npos) break;
+        start = end + 1;
+    }
+    while (!result.empty() && result.back().empty()) result.pop_back();
+    return result;
+}
+struct ChannelOptics {
+    std::string wavelength, excitation, emission;
+    std::string description() const {
+        if (!wavelength.empty()) return wavelength + " nm";
+        std::string result;
+        if (!excitation.empty()) result = "Ex " + excitation;
+        if (!emission.empty()) result += (result.empty() ? "" : "; ") + std::string("Em ") + emission;
+        return result;
+    }
+};
+inline ChannelOptics channelOptics(const Run &run, const std::string &channel) {
+    ChannelOptics result;
+    if (channel.empty() || channel.find_first_not_of("0123456789") != channel.npos || channel.size() > 4)
+        return result;
+    auto number = std::stoul(channel);
+    if (!number) return result;
+    auto get = [&](const std::string &key) {
+        auto values = filterSettings(runSetting(run, key));
+        // A single stored setting is shared by the chromatic selections.
+        return values.size() == 1 ? values[0] : number <= values.size() ? values[number - 1] : std::string();
+    };
+    auto mode = runSetting(run, "MESSTYP");
+    if (mode == "3") {
+        auto value = get("EXFILT");
+        if (excelNumber(value)) result.wavelength = value;
+    } else if (mode == "0" || mode == "1" || mode == "5" || mode == "9" || mode == "10") {
+        result.excitation = get("EXFILT");
+        result.emission = get("EMFILT");
+    } else if (mode == "4") {
+        result.emission = get("EMFILT");
+    }
+    // Multi-detector techniques need separate A/B mapping; leave channel identities intact.
+    return result;
+}
+
 inline CompactExport compactExport(const Run &run, const Table &table) {
     CompactExport result;
     auto metadata = [&](const std::string &label, const std::string &value) {
@@ -310,6 +377,21 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
     metadata("Protocol", run.protocol);
     metadata("Measurement date/time", run.stamp);
     metadata("Technique", run.technique);
+    metadata("Measurement type", run.measurementType);
+    auto mode = runSetting(run, "MESSTYP");
+    auto readableFilters = [&](const std::string &key) {
+        std::string text;
+        for (const auto &value : filterSettings(runSetting(run, key))) {
+            if (!text.empty()) text += "; ";
+            text += value;
+        }
+        return text;
+    };
+    metadata(mode == "3" ? "Absorbance wavelengths (nm)" : mode == "11" ? "Spectrum range / step" :
+             mode == "4" || mode == "7" ? "Stored EXFILT" : "Excitation filter settings",
+             readableFilters("EXFILT"));
+    metadata(mode == "3" || mode == "11" ? "Stored EMFILT" : "Emission filter settings",
+             readableFilters("EMFILT"));
     metadata("Plate", run.plate);
     metadata("User", run.user);
     metadata("ID1", run.id1);
@@ -335,6 +417,31 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
     if (plateRows.empty())
         throw std::runtime_error("Run contains no plate-well measurements");
     result.measurements = plateRows.size();
+    std::map<std::string, Row> wellLabels;
+    std::set<Row> coordinates;
+    for (const auto *row : plateRows) {
+        const auto &well = (*row)[size_t(wellIndex)];
+        Row labels = {table.get(*row, "CONTENT"), table.get(*row, "SAMPLEID")};
+        auto inserted = wellLabels.emplace(well, labels);
+        if (!inserted.second && inserted.first->second != labels)
+            throw std::runtime_error("Conflicting labels for the same well");
+        if (wavelengthIndex >= 0 && (*row)[size_t(wavelengthIndex)].empty())
+            throw std::runtime_error("Missing wavelength in measurement record");
+        if (measurementIndexes.size() > 1 &&
+            !coordinates.insert({well, (*row)[size_t(channelIndex)], table.get(*row, "WAVELENGTH")}).second)
+            throw std::runtime_error("Duplicate well/channel/wavelength measurement record");
+    }
+
+    auto wavelengthOf = [&](const Row &row) {
+        return wavelengthIndex >= 0 ? row[size_t(wavelengthIndex)]
+                                    : channelOptics(run, row[size_t(channelIndex)]).wavelength;
+    };
+    bool hasWavelength = wavelengthIndex >= 0 ||
+        (mode == "3" && std::all_of(plateRows.begin(), plateRows.end(),
+            [&](const Row *row) { return !wavelengthOf(*row).empty(); }));
+    auto opticsOf = [&](const std::string &channel) { return channelOptics(run, channel).description(); };
+    bool hasOptics = !hasWavelength && std::any_of(plateRows.begin(), plateRows.end(),
+        [&](const Row *row) { return !opticsOf((*row)[size_t(channelIndex)]).empty(); });
 
     if (measurementIndexes.size() == 1) {
         std::vector<std::string> wells;
@@ -354,7 +461,7 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
         }
 
         bool useTime = false;
-        if (wavelengthIndex < 0 && timeIndex >= 0) {
+        if (!hasWavelength && timeIndex >= 0) {
             std::set<std::string> seen;
             for (const auto *row : plateRows) {
                 std::string key = (*row)[size_t(wellIndex)] + "\x1f" + (*row)[size_t(channelIndex)];
@@ -373,14 +480,14 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
         std::map<std::string, size_t> axisIndexes;
         for (const auto *row : plateRows) {
             std::string primary;
-            if (wavelengthIndex >= 0)
-                primary = (*row)[size_t(wavelengthIndex)];
+            if (hasWavelength)
+                primary = wavelengthOf(*row);
             else if (useTime)
                 primary = (*row)[size_t(timeIndex)];
             else
                 primary = (*row)[size_t(channelIndex)];
             std::string channel =
-                (wavelengthIndex >= 0 || useTime) ? (*row)[size_t(channelIndex)] : "";
+                (hasWavelength || useTime) ? (*row)[size_t(channelIndex)] : "";
             std::string key = primary + "\x1f" + channel;
             auto inserted = axisIndexes.emplace(key, axes.size());
             if (inserted.second)
@@ -396,7 +503,11 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
 
         Row wellHeader = {"Well"};
         Row contentHeader = {"Content"};
-        if (wavelengthIndex >= 0 || useTime) {
+        if (hasWavelength || useTime) {
+            wellHeader.push_back("");
+            contentHeader.push_back("");
+        }
+        if (hasOptics) {
             wellHeader.push_back("");
             contentHeader.push_back("");
         }
@@ -405,29 +516,37 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
             contentHeader.push_back(contents[well]);
         addCompactRow(result, std::move(wellHeader));
         addCompactRow(result, std::move(contentHeader));
-        Row header = {wavelengthIndex >= 0 ? "Wavelength (nm)" : (useTime ? "Time" : "Channel")};
-        if (wavelengthIndex >= 0 || useTime)
+        Row header = {hasWavelength ? "Wavelength (nm)" : (useTime ? "Time" : "Channel")};
+        if (hasWavelength || useTime)
             header.push_back("Channel");
+        if (hasOptics) header.push_back("Optical settings");
         header.insert(header.end(), wells.begin(), wells.end());
         addCompactRow(result, std::move(header));
         result.dataHeaderRow = result.rows.size();
         for (const auto &axis : axes) {
             Row row = {axis.primary};
-            if (wavelengthIndex >= 0 || useTime)
+            if (hasWavelength || useTime)
                 row.push_back(axis.channel);
+            if (hasOptics) row.push_back(opticsOf(useTime ? axis.channel : axis.primary));
             row.insert(row.end(), axis.values.begin(), axis.values.end());
-            addCompactRow(result, std::move(row),
-                          std::vector<bool>(
-                              1 + (wavelengthIndex >= 0 || useTime ? 1 : 0) + wells.size(), true));
+            std::vector<bool> numeric(row.size(), true);
+            if (hasOptics) numeric[1 + (useTime ? 1 : 0)] = false;
+            addCompactRow(result, std::move(row), std::move(numeric));
         }
     } else {
+        bool scanning = runSetting(run, "MODE") == "50";
         const Row *timeRow = nullptr;
-        for (const auto &row : table.rows)
-            if (row[size_t(channelIndex)] == "t") {
-                timeRow = &row;
-                break;
-            }
+        if (!scanning)
+            for (const auto &row : table.rows)
+                if (row[size_t(channelIndex)] == "t") {
+                    if (timeRow) throw std::runtime_error("Multiple kinetic timing records");
+                    timeRow = &row;
+                }
+        if (timeRow && std::any_of(measurementIndexes.begin(), measurementIndexes.end(),
+                [&](size_t index) { return (*timeRow)[index].empty(); }))
+            timeRow = nullptr; // Use field identities rather than blank or mixed time labels.
         Row wellHeader = {"Well"}, contentHeader = {"Content"}, channelHeader = {"Channel"};
+        Row wavelengthHeader = {"Wavelength (nm)"}, opticsHeader = {"Optical settings"};
         for (const auto *row : plateRows) {
             wellHeader.push_back((*row)[size_t(wellIndex)]);
             std::string content = sampleIndex >= 0 ? (*row)[size_t(sampleIndex)] : "";
@@ -435,14 +554,22 @@ inline CompactExport compactExport(const Run &run, const Table &table) {
                 content = (*row)[size_t(contentIndex)];
             contentHeader.push_back(content);
             channelHeader.push_back((*row)[size_t(channelIndex)]);
+            if (hasWavelength) wavelengthHeader.push_back(wavelengthOf(*row));
+            if (hasOptics) opticsHeader.push_back(opticsOf((*row)[size_t(channelIndex)]));
         }
         addCompactRow(result, std::move(wellHeader));
         addCompactRow(result, std::move(contentHeader));
         addCompactRow(result, std::move(channelHeader));
-        Row header = {timeRow ? "Time" : "Measurement"};
+        if (hasWavelength) addCompactRow(result, std::move(wavelengthHeader));
+        if (hasOptics) addCompactRow(result, std::move(opticsHeader));
+        Row header = {scanning ? "Scan field" : timeRow ? "Time" : "Measurement"};
         for (const auto *row : plateRows) {
             auto label = (*row)[size_t(wellIndex)];
-            if ((*row)[size_t(channelIndex)] != "1")
+            if (hasWavelength && !wavelengthOf(*row).empty())
+                label += " (" + wavelengthOf(*row) + " nm)";
+            else if (hasOptics)
+                label += " (Ch " + (*row)[size_t(channelIndex)] + "; " + opticsOf((*row)[size_t(channelIndex)]) + ")";
+            else if ((*row)[size_t(channelIndex)] != "1")
                 label += " (Ch " + (*row)[size_t(channelIndex)] + ")";
             header.push_back(label);
         }

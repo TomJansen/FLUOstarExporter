@@ -170,7 +170,7 @@ static void fill(bool preserve = true) {
     auto query = lower(textOf(searchEdit));
     for (size_t i = 0; i < runs.size(); ++i) {
         auto &r = runs[i];
-        auto hay = lower(wide(r.protocol + " " + r.stamp + " " + r.technique + " " + r.user + " " +
+        auto hay = lower(wide(r.protocol + " " + r.stamp + " " + r.technique + " " + r.measurementType + " " + r.user + " " +
                               r.plate + " " + r.protocolComment + " " + r.id1 + " " + r.id2 + " " +
                               r.id3 + " " + r.id + " " + (r.available ? "Ready" : "Data file missing")));
         if (query.empty() || hay.find(query) != hay.npos)
@@ -192,12 +192,14 @@ static void fill(bool preserve = true) {
             case 6:
                 return r.technique;
             case 7:
-                return r.plate;
+                return r.measurementType;
             case 8:
-                return r.protocolComment;
+                return r.plate;
             case 9:
-                return r.id;
+                return r.protocolComment;
             case 10:
+                return r.id;
+            case 11:
                 return r.available ? std::string("Ready") : std::string("Missing");
             default:
                 return r.stamp;
@@ -217,6 +219,7 @@ static void fill(bool preserve = true) {
                                          r.id3,
                                          r.user,
                                          r.technique,
+                                         r.measurementType,
                                          r.plate,
                                          r.protocolComment,
                                          r.id,
@@ -413,12 +416,13 @@ static LRESULT CALLBACK windowProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                                    L"ID3",
                                    L"User",
                                    L"Technique",
+                                   L"Measurement type",
                                    L"Plate",
                                    L"Protocol comment",
                                    L"Run ID",
                                    L"Status"};
-        int widths[] = {174, 235, 190, 220, 170, 90, 165, 150, 240, 74, 135};
-        for (int i = 0; i < 11; ++i) {
+        int widths[] = {174, 235, 190, 220, 170, 90, 165, 180, 150, 240, 74, 135};
+        for (int i = 0; i < 12; ++i) {
             LVCOLUMNW col{};
             col.mask = LVCF_TEXT | LVCF_WIDTH;
             col.pszText = (LPWSTR)labels[i];

@@ -61,6 +61,81 @@ int main(int argc, char **argv) {
                     compact.rows[header] == Row({"Channel", "A01", "A02"}) &&
                     compact.rows[header + 1] == Row({"1", "1.25", "2.50"}),
                 "Endpoint labels must align with their measurement columns");
+        Table kineticSpectrum;
+        kineticSpectrum.fields = {{"WELLNUM", 'C', 4}, {"CH", 'C', 3},
+                                  {"WAVELENGTH", 'N', 12}, {"M1", 'N', 12}, {"M2", 'N', 12}};
+        kineticSpectrum.rows = {{"", "t", "", "0.0000", "4.0000"},
+                                {"A01", "1", "380.0000", "0.1200", "0.1300"},
+                                {"A01", "2", "382.0000", "0.2200", "0.2300"},
+                                {"A02", "1", "380.0000", "0.3200", "0.3300"},
+                                {"A02", "2", "382.0000", "0.4200", "0.4300"}};
+        auto spectrum = compactExport(run, kineticSpectrum);
+        auto spectrumHeader = spectrum.dataHeaderRow - 1;
+        require(spectrum.rows[spectrumHeader - 1] ==
+                    Row({"Wavelength (nm)", "380.0000", "382.0000", "380.0000", "382.0000"}) &&
+                    spectrum.rows[spectrumHeader] ==
+                    Row({"Time", "A01 (380.0000 nm)", "A01 (382.0000 nm)",
+                         "A02 (380.0000 nm)", "A02 (382.0000 nm)"}) &&
+                    spectrum.rows[spectrumHeader + 1] ==
+                    Row({"0.0000", "0.1200", "0.2200", "0.3200", "0.4200"}) &&
+                    spectrum.rows[spectrumHeader + 2] ==
+                    Row({"4.0000", "0.1300", "0.2300", "0.3300", "0.4300"}),
+                "Kinetic spectrum must label each well/wavelength column and retain time/value alignment");
+        // Filters live in catalogue fields, not necessarily in WAVELENGTH.
+        auto opticalRun = run;
+        opticalRun.meta = {{"MESSTYP", "0"}, {"EXFILT", "485-12\t"}, {"EMFILT", "520\t"}};
+        auto fi = compactExport(opticalRun, endpoint);
+        require(fi.rows[fi.dataHeaderRow - 1] == Row({"Channel", "Optical settings", "A01", "A02"}) &&
+                    fi.rows[fi.dataHeaderRow] == Row({"1", "Ex 485-12; Em 520", "1.25", "2.50"}),
+                "FI endpoint must show its filter designations without changing values");
+        opticalRun.meta = {{"MESSTYP", "3"}, {"EXFILT", "450\t595\t"}, {"EMFILT", "Lens"}};
+        auto absorbance = compactExport(opticalRun, endpoint);
+        require(absorbance.rows[absorbance.dataHeaderRow] == Row({"450", "1", "1.25", "2.50"}),
+                "Absorbance must map channel to stored wavelength");
+        opticalRun.meta = {{"MESSTYP", "1"}, {"EXFILT", "485-12\t584\t"}, {"EMFILT", "520\t615\t"}};
+        auto optics = channelOptics(opticalRun, "2");
+        require(optics.excitation == "584" && optics.emission == "615" && optics.wavelength.empty(),
+                "FI multi-channel filter settings must follow channel order");
+        opticalRun.meta["MESSTYP"] = "4";
+        optics = channelOptics(opticalRun, "2");
+        require(optics.excitation.empty() && optics.emission == "615",
+                "Luminescence must not mislabel a stored EXFILT value as excitation");
+        require(channelOptics(opticalRun, "t").description().empty(), "Technical channel has no optics");
+        Table fiKinetic;
+        fiKinetic.fields = {{"WELLNUM", 'C', 4}, {"CH", 'C', 2}, {"M1", 'N', 10}, {"M2", 'N', 10}};
+        fiKinetic.rows = {{"", "t", "0", "4"}, {"A01", "1", "1.2500", "1.5000"}};
+        opticalRun.meta = {{"MESSTYP", "0"}, {"EXFILT", "485-12\t"}, {"EMFILT", "520\t"}};
+        auto kinetic = compactExport(opticalRun, fiKinetic);
+        require(kinetic.rows[kinetic.dataHeaderRow - 1][1] == "A01 (Ch 1; Ex 485-12; Em 520)" &&
+                    kinetic.rows[kinetic.dataHeaderRow] == Row({"0", "1.2500"}),
+                "FI kinetics must retain filter labels, time and decimal values");
+        opticalRun.meta = {{"MESSTYP", "3"}, {"EXFILT", "595\t"}};
+        kinetic = compactExport(opticalRun, fiKinetic);
+        require(kinetic.rows[kinetic.dataHeaderRow - 1][1] == "A01 (595 nm)",
+                "Absorbance kinetics must label catalogue wavelengths");
+        opticalRun.meta = {{"MODE", "50"}, {"MESSTYP", "0"}};
+        fiKinetic.fields[3].name = "M1_1";
+        fiKinetic.rows[0][3].clear();
+        auto scan = compactExport(opticalRun, fiKinetic);
+        require(scan.rows[scan.dataHeaderRow - 1][0] == "Scan field" &&
+                    scan.rows[scan.dataHeaderRow] == Row({"M1", "1.2500"}) &&
+                    scan.rows[scan.dataHeaderRow + 1] == Row({"M1_1", "1.5000"}),
+                "Well scan must retain spatial field identities rather than claim time points");
+        opticalRun.meta.erase("MODE");
+        auto untimed = compactExport(opticalRun, fiKinetic);
+        require(untimed.rows[untimed.dataHeaderRow - 1][0] == "Measurement" &&
+                    untimed.rows[untimed.dataHeaderRow + 1][0] == "M1_1",
+                "Incomplete timing data must fall back to field identities");
+        auto duplicateKinetic = fiKinetic;
+        duplicateKinetic.rows[1][2].clear();
+        duplicateKinetic.rows.push_back(duplicateKinetic.rows[1]);
+        fails([&] { compactExport(opticalRun, duplicateKinetic); });
+        auto missingWavelength = kineticSpectrum;
+        missingWavelength.rows[1][2].clear();
+        fails([&] { compactExport(run, missingWavelength); });
+        auto conflictingLabels = endpoint;
+        conflictingLabels.rows.push_back({"A01", "2", "3.0", "Different label"});
+        fails([&] { compactExport(run, conflictingLabels); });
         endpoint.rows[0][2].clear();
         endpoint.rows.push_back({"A01", "1", "9.99", "Sample A"});
         fails([&] { compactExport(run, endpoint); });

@@ -10,6 +10,8 @@ A portable Windows app that exports FLUOstar OMEGA measurements to Excel or CSV.
 4. Choose **Export to**. The default is an `Exports` folder beside the executable.
 5. Choose **Excel (.xlsx)** or **CSV (.csv)** under **Format**, select runs, and click **Export selected to XLSX** or **Export selected to CSV**.
 
+The **Measurement type** column shows **Kinetic** for protocols with multiple stored cycles or **Single measurement** for one cycle. This describes the cycles stored in each individual run. Script names and ID comments do not affect this classification. A script that repeats a single-cycle protocol still produces individual **Single measurement** entries; the exporter exports those entries separately. Missing or invalid cycle counts show **Measurement type unknown**. These labels are also searchable and included as separate measurement-type metadata in exports. **Technique** shows the measurement method.
+
 Click a row to select it. **Shift-click** selects a range; **Ctrl-click** adds or removes individual rows. **Select all**, or **Ctrl+A** with the run list focused, selects all visible runs. **Clear** clears the selection. Search covers every displayed column, and clicking a column heading sorts the list. Only highlighted, visible runs are exported. The run list remains scrollable during and after export. The selected runs are captured when you click Export. **Refresh** reloads the database after new runs finish.
 
 After a successful export, **Open export folder** opens the folder used by that export in Windows Explorer. It becomes available once at least one file has been exported and always opens the most recent successful export folder, even if you edit **Export to** afterward.
@@ -34,16 +36,31 @@ Existing exports are preserved. Duplicate names gain `_1`, `_2`, and so on befor
 
 ## Excel and CSV contents
 
-Each file starts with the available run metadata: run ID, protocol, measurement date/time, technique, plate, user, ID1–ID3, and protocol comment. Empty metadata fields are omitted. ID1–ID3 come from `IDNUMBER`, `IDNUMBER2`, and `IDNUMBER3`; the protocol comment comes from `KOMMENTAR`.
+Each file starts with the available run metadata: run ID, protocol, measurement date/time, technique, measurement type, optical settings, plate, user, ID1–ID3, and protocol comment. Empty metadata fields are omitted. ID1–ID3 come from `IDNUMBER`, `IDNUMBER2`, and `IDNUMBER3`; the protocol comment comes from `KOMMENTAR`.
+
+Technique names follow the supplied BMG MARS definitions. In particular, database mode 3 is **Absorbance**, mode 4 is **Luminescence**, and mode 10 is **TRF**. Exports produced before this correction may have incorrect technique names and should be exported again.
 
 The measurement table adapts to the stored layout:
 
 - Spectrum runs use wavelength/channel rows and well columns.
-- Kinetic runs use time or measurement-point rows, with well or well/channel columns.
-- Endpoint runs with one measurement field use channel rows and well columns.
+- Kinetic runs use time or measurement-point rows, with well or well/channel columns. Kinetic spectra include a wavelength header and well/wavelength column labels.
+- Endpoint runs use wavelength or channel rows and well columns. Absorbance wavelength selections are shown even when stored in protocol settings rather than a wavelength column.
+- FI/TRF channels include the recorded excitation/emission filter settings; filter names are preserved as stored.
+- Well scans use scan-field rows rather than a time axis.
 - Sample IDs, or well-content labels when no sample ID is present, appear above the measurement columns.
 
-Calibration references such as `0ABS` and `1ABS`, other technical records, and repeated database metadata are omitted from the measurement table. A stored timing record can supply kinetic row labels. Values are copied from the measurement table without recalculation. CSV preserves their stored decimal text. XLSX uses numeric cells where Excel can represent the value within its 15-significant-digit limit; other values remain text. Excel may display fewer decimal places than are stored.
+Examples of the exported labels:
+
+| Stored measurement | Export label or layout |
+|---|---|
+| Absorbance at 655 nm | `A01 (655 nm)` in a kinetic table; wavelength/channel rows for an endpoint table. |
+| FI with filters `485-12` and `520` | `A01 (Ch 1; Ex 485-12; Em 520)` in a kinetic table; an **Optical settings** column for endpoint readings. |
+| Kinetic absorbance spectrum | A **Wavelength (nm)** header identifies the columns, for example `A05 (380.0000 nm)`; time points remain as rows. |
+| Well scan | **Scan field** rows such as `M1`, `M1_1`, and `M1_2`, preserving the stored field identities. |
+
+Filter designations such as `485-12` remain text. The exporter does not interpret them as arithmetic, infer their bandwidth, or substitute a single wavelength. Genuine luminescence uses recorded emission settings; a channel number is not itself a wavelength. For techniques whose detector A/B mapping has not been verified, the export keeps the raw channel IDs and optical-setting metadata.
+
+Calibration references such as `0ABS` and `1ABS`, other technical records, and repeated database metadata are omitted from the measurement table. A complete stored timing record can supply kinetic row labels. Channel IDs remain visible alongside optical labels; settings for techniques with unverified detector mappings remain in metadata. Values are copied from the measurement table without recalculation. CSV preserves their stored decimal text. XLSX uses numeric cells where Excel can represent the value within its 15-significant-digit limit; other values remain text. Excel may display fewer decimal places than are stored.
 
 XLSX files contain one `Measurements` sheet, with the rows through the data header frozen and filters on the measurement table. Excel is not needed to create them. CSV files use commas, quoted cells, CRLF line endings, a UTF-8 BOM, and decimal points. In Danish Excel, use **Data → From Text/CSV**, choose UTF-8, and select comma as the delimiter.
 
@@ -51,11 +68,11 @@ The app does not export MARS analysis definitions or results computed by analysi
 
 ## Validation
 
-Earlier validation used a private database containing thousands of runs. All available measurement files exported to CSV; one indexed run with a missing file failed as expected. XLSX exports covering 23 distinct DBF layouts passed ZIP and XML checks and opened with openpyxl.
+The current audit checked 3,047 available measurement files across 23 DBF layouts. All 2,362,780 source measurement values matched their compact export coordinates exactly. All available files exported to CSV; one indexed run with a missing file failed as expected. XLSX exports covering all 23 layouts passed ZIP/XML checks, and every nonempty worksheet cell matched its corresponding CSV text.
 
 A reference spectrum with 381 wavelengths and 8 wells matched a MARS CSV within its three-decimal rounding precision (maximum absolute difference: 0.0005). This comparison validates that reference spectrum, rather than every measurement mode.
 
-Regression checks cover parsing, dates, filenames, text encoding, compact layouts, duplicate measurements, file collisions, partial files, locks, deleted records, and missing or truncated tables. The Windows UI harness covers database discovery, selection, search, scrolling, both export formats, settings, and shutdown. See [VALIDATION.md](VALIDATION.md) for artifact details and the checks rerun for the current build.
+Regression checks cover parsing, dates, filenames, text encoding, compact layouts, duplicate measurements, file collisions, partial files, locks, deleted records, and missing or truncated tables. The Windows UI harness covers database discovery, selection, search, scrolling, both export formats, settings, and shutdown. See [VALIDATION.md](VALIDATION.md) for artifact details and [Export layout audit](docs/export-audit.md) for the technique, filter, wavelength, and scan-axis checks.
 
 ## Build and development
 
@@ -126,6 +143,15 @@ For a test without instrument data, generate a synthetic fixture first:
 python3 tools/make_test_fixture.py build/test-fixture
 build/core-tests build/test-fixture build/test-output
 ```
+
+To audit every available file against its compact output without writing exports:
+
+```sh
+clang++ -std=c++17 -O2 -Wall -Wextra -Werror tools/audit.cpp -o build/audit
+build/audit /path/to/Omega/User/Data
+```
+
+The audit counts missing files separately and returns a failure for parsing or value/coordinate mismatches. It does not validate MARS analysis results or establish the physical meaning of unverified layouts.
 
 Both fixture and output directories must be new. The full verifier reports indexed runs with missing files as failures. `tools/ui_smoke.cpp` is a Windows UI integration harness.
 

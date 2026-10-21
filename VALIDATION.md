@@ -1,34 +1,45 @@
 # Validation — 2026-10-21
 
-Release v1.2 uses `YYYYMMDD_HHMMSS_ProtocolName` filenames and version resources set to 1.2. Repeated exports use `_1`, `_2`, and subsequent numeric suffixes. Core regression checks passed for CSV/XLSX filenames and duplicate handling. The Windows UI harness passed in CrossOver, including hover scrolling before, during, and after XLSX/CSV export, the export-folder button being disabled initially and enabled after a successful export, and opening the folder through the Windows shell.
+## Current build
 
-The report below records the earlier development build labelled v1.3.3. Its checksum and Windows UI results refer to that build. Packaged builds include their own executable checksum in `SHA256SUMS.txt`.
+The current local build includes the separate **Measurement type** column, corrected BMG technique-code mapping, optical labels for endpoint and kinetic exports, wavelength headers for kinetic spectra, and spatial scan-field labels. Script comments are not used to classify or group measurements. Version resources remain 1.2; this report does not describe a newly published release.
 
-Development artifact: v1.3.3 `dist/FLUOstarExporter.exe`, 32-bit Windows GUI executable, subsystem 6.1.
+Executable: `dist/FLUOstarExporter.exe`, 32-bit Windows GUI, subsystem 6.1.
 
-SHA-256: `2c0922a2a9ce522d17409d5e9bda87a189c70a99c575fc2180eeadb1a3b27789`
+SHA-256: `d167a78219172e3b2668fe6ac9c51830511619949db4c58e8d6bb10a3d27102d`.
 
-## Checks rerun for v1.3.3
+## Checks completed
 
-- The Windows app compiled with `-Wall -Wextra -Werror` using Apple Clang, LLVM-MinGW 20241001 MSVCRT headers/libraries, and LLVM's linker through CrossOver.
-- Imported DLLs: COMCTL32, ole32, SHELL32, msvcrt, GDI32, USER32, and KERNEL32. No separately shipped runtime is required.
-- Core regression checks passed, including endpoint label alignment, duplicate-cell rejection when the first value is blank, DBF date fields, leap years, invalid calendar dates, filenames, Windows-1252 decoding, CSV quoting, measurement-field discovery, collisions, partial-file preservation, locks, deleted records, and missing/truncated tables.
-- The private catalogue contained 3,048 runs. All 3,047 available measurement files exported to CSV, containing 2,256,882 plate-well source records in total. The one missing measurement file produced the expected failure. These counts describe source records, not output rows or individual measurement cells.
-- XLSX exports covering all 23 distinct DBF layouts passed ZIP checksums and XML parsing. openpyxl read every worksheet cell in those workbooks.
-- The reference spectrum comparison passed: 381 wavelengths × 8 wells, maximum absolute difference 0.0005 against the MARS CSV. The exporter retains the stored decimal values; MARS's reference file uses three decimals.
+| Check | Result |
+|---|---|
+| Technique-code mapping | All 12 recognized codes agree with `tpMessTypID` in the supplied BMG MARS `Config/Omega/DbMap.xml`. |
+| Source value/coordinate audit | 3,047 available files, 23 DBF layouts, and 2,362,780 measurement values checked; zero mismatches. |
+| CSV batch export | All 3,047 available files exported, containing 2,256,882 plate-well source records. The missing file for run 3103 failed as expected. |
+| XLSX layout coverage | All 23 layouts passed ZIP checksum and XML parsing checks; 42,669 nonempty worksheet cells matched the corresponding CSV text exactly. |
+| Native core regression checks | Passed with private instrument data. |
+| Windows core regression checks | Passed with synthetic fixtures in a 32-bit Windows executable under CrossOver. |
+| Windows UI harness | Passed discovery, selection, search, hover scrolling before/during/after exports, both formats, export-folder opening, saved settings, and shutdown. |
+| Windows/native output comparison | The UI harness's CSV and XLSX exports matched the corresponding native artifacts byte for byte. |
+| Build and packaging | Built with `-Wall -Wextra -Werror`; portable ZIP contents, runtime imports, and executable checksum verified. |
 
-- The v1.3.3 executable passed the Windows UI harness in the dedicated Windows 7 CrossOver bottle: automatic discovery, loading, hover scrolling, Shift/Ctrl selection, Clear, status and run-comment search, Select all, XLSX/CSV exports, saved source/format after restart, and clean exit.
+The value audit counts individual stored measurement cells, including blanks. The CSV record count counts source plate-well records; a record can contain multiple measurement fields. These totals do not count the same thing.
 
-## Fixes in this build
+The new regression cases cover fluorescence filter pairing, absorbance wavelength mapping, emission-only interpretation for luminescence, kinetic spectra, spatial scans, incomplete time labels, missing wavelengths, conflicting labels, and duplicate measurement coordinates. Existing checks cover dates, leap years, filenames, duplicate export names, Windows-1252 text, CSV quoting, endpoint label alignment, partial files, locks, deleted records, and missing/truncated DBFs.
 
-- Endpoint well and content labels align with their measurement columns.
-- Duplicate cells fail even when the earlier measurement is blank.
-- Date validation checks month lengths and leap years and accepts the DBF `YYYYMMDD` date form.
-- Search includes the Status column. Progress says “Processed” so failed runs are not described as exported.
-- Documentation explains metadata omissions, Excel numeric precision, saved paths, interrupted exports, and the limits of consistency checks.
+The build uses Apple Clang and the LLVM-MinGW 20241001 MSVCRT toolchain, with LLVM's linker through CrossOver. The portable app uses Windows system DLLs and requires no separately shipped runtime. CrossOver checks ran in the dedicated Windows 7 test bottle on macOS.
+
+See [Export layout audit](docs/export-audit.md) for specific findings, examples, the audit command, and interpretation limits. See [Database structure](docs/database-structure.md) for field mappings and export layouts.
+
+## Earlier reference comparison
+
+A reference absorbance spectrum with 381 wavelengths and 8 wells matched a MARS CSV within its three-decimal rounding precision: maximum absolute difference 0.0005. This establishes agreement for that reference spectrum. The current all-file audit establishes preservation of stored source values; it is not an independent comparison with MARS for every measurement mode.
+
+Earlier development reports used the label v1.3.3 and executable checksum `2c0922a2a9ce522d17409d5e9bda87a189c70a99c575fc2180eeadb1a3b27789`. That checksum identifies the historical artifact, not the current executable above. Packaged builds also contain their own executable checksum in `SHA256SUMS.txt`.
 
 ## Limits
 
-Physical Windows hardware, the plate-reader PC, USB removal behavior, and exports while the instrument is writing remain unverified. Export completed runs. File size and modification-time checks can detect changes during a read, but do not provide a consistent database snapshot.
+The inspected private data contains FI, multi-channel FI, absorbance, TRF, and absorbance spectra. Genuine luminescence is covered by synthetic regression cases only. Techniques absent from this data are not established by the private-data audit, and detector A/B associations are not inferred. Filter names remain literal stored designations. Spatial scan positions are not reconstructed.
 
-Only the reference spectrum has been compared cell by cell with a MARS export. Successful parsing and workbook validation across the other layouts do not independently establish agreement with every vendor measurement or analysis mode.
+Physical Windows hardware, the plate-reader PC, USB removal behavior, and exports during acquisition remain unverified. Export completed runs. File-size and modification-time checks can detect some changes during reading, but do not provide a consistent database snapshot.
+
+The exporter does not evaluate MARS analysis workflows, curve fits, or blank subtraction, and these checks do not validate those results or physical acquisition timing.
