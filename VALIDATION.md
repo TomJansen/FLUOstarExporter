@@ -1,6 +1,6 @@
 # Validation — 2026-10-21
 
-Release v1.1 uses `YYYYMMDD_HHMMSS_ProtocolName` filenames and version resources set to 1.1. Repeated exports use `_1`, `_2`, and subsequent numeric suffixes. Core regression checks passed for CSV/XLSX filenames and duplicate handling. The Windows UI harness passed in CrossOver, including hover scrolling before, during, and after XLSX/CSV export.
+Release v1.2 uses `YYYYMMDD_HHMMSS_ProtocolName` filenames and version resources set to 1.2. Repeated exports use `_1`, `_2`, and subsequent numeric suffixes. Core regression checks passed for CSV/XLSX filenames and duplicate handling. The Windows UI harness passed in CrossOver, including hover scrolling before, during, and after XLSX/CSV export, the export-folder button being disabled initially and enabled after a successful export, and opening the folder through the Windows shell.
 
 The report below records the earlier development build labelled v1.3.3. Its checksum and Windows UI results refer to that build. Packaged builds include their own executable checksum in `SHA256SUMS.txt`.
 
