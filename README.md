@@ -12,6 +12,8 @@ A portable Windows app that exports FLUOstar OMEGA measurements to Excel or CSV.
 
 Click a row to select it. **Shift-click** selects a range; **Ctrl-click** adds or removes individual rows. **Select all**, or **Ctrl+A** with the run list focused, selects all visible runs. **Clear** clears the selection. Search covers every displayed column, and clicking a column heading sorts the list. Only highlighted, visible runs are exported. The run list remains scrollable during and after export. The selected runs are captured when you click Export. **Refresh** reloads the database after new runs finish.
 
+After a successful export, **Open export folder** opens the folder used by that export in Windows Explorer. It becomes available once at least one file has been exported and always opens the most recent successful export folder, even if you edit **Export to** afterward.
+
 The app saves the format, database path, and output folder in `FLUOstarExporter.ini` beside the executable. The chosen format applies to all selected runs. The default `Exports` folder follows the executable if the USB drive letter changes; custom paths are saved as absolute paths.
 
 Finish the plate-reader run before exporting. The app opens the database for reading only. Missing, incomplete, unsupported, or detectably changed measurement files fail individually, and the batch continues. **Stop** finishes the current run before stopping. Keep the USB stick connected until the app has closed. If you close the window during export, the app stops after the current run; close the window again once it finishes.

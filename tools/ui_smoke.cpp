@@ -105,6 +105,8 @@ int wmain(int argc, wchar_t **argv) {
         return 5;
     if (SendMessageW(GetDlgItem(h, 111), CB_GETCURSEL, 0, 0) != 0)
         return 9;
+    if (IsWindowEnabled(GetDlgItem(h, 112)))
+        return 32;
     wchar_t expectedPath[32768];
     SendMessageW(GetDlgItem(h, 101), WM_GETTEXT, 32768, (LPARAM)expectedPath);
     snapshot(h, argv[4]);
@@ -173,6 +175,8 @@ int wmain(int argc, wchar_t **argv) {
         return 8;
     if (!hoverScrolls())
         return 30;
+    if (!IsWindowEnabled(GetDlgItem(h, 112)))
+        return 33;
     SendMessageW(GetDlgItem(h, 111), CB_SETCURSEL, 1, 0);
     SendMessageW(h, WM_COMMAND, MAKEWPARAM(111, CBN_SELCHANGE), (LPARAM)GetDlgItem(h, 111));
     SendMessageW(h, WM_COMMAND, 109, 0);
@@ -182,6 +186,8 @@ int wmain(int argc, wchar_t **argv) {
         return 10;
     if (!hoverScrolls())
         return 31;
+    // Exercise the actual shell-open action once the exports are complete.
+    SendMessageW(h, WM_COMMAND, 112, 0);
     SendMessageW(h, WM_CLOSE, 0, 0);
     if (WaitForSingleObject(pi.hProcess, 5000) != WAIT_OBJECT_0)
         return 26;
@@ -211,7 +217,7 @@ int wmain(int argc, wchar_t **argv) {
         return 27;
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
-    wprintf(L"PASS: source load, hover scrolling before/during/after export, Shift-click range, Ctrl-click, clear, status/ID search, "
+    wprintf(L"PASS: source load, export-folder button, hover scrolling before/during/after export, Shift-click range, Ctrl-click, clear, status/ID search, "
             L"select-all, XLSX/CSV exports, saved source/format on restart, clean process exit\n");
     return 0;
 }

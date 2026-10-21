@@ -19,7 +19,7 @@ static HWND mainWindow, list, sourceEdit, outputEdit, searchEdit, statusLabel, t
 static HFONT font, titleFont;
 static std::vector<Run> runs;
 static std::vector<size_t> visible;
-static fs::path executableDir, sourceDir, settingsPath;
+static fs::path executableDir, sourceDir, settingsPath, lastExportDir;
 static ExportFormat exportFormat = ExportFormat::Xlsx;
 static bool busy = false, sortAscending = false, rebuilding = false;
 static int sortColumn = 0;
@@ -38,7 +38,8 @@ enum {
     CLEAR,
     EXPORT,
     CANCEL,
-    FORMAT
+    FORMAT,
+    OPENOUTPUT
 };
 static std::wstring wide(const std::string &s) {
     if (s.empty())
@@ -134,7 +135,8 @@ static void layout() {
     position(BROWSESOURCE, w - m - 198, 60, 94, 28);
     position(REFRESH, w - m - 94, 60, 94, 28);
     position(202, m, 100, 90, 22);
-    MoveWindow(outputEdit, m + 94, 96, w - 2 * m - 198, 28, TRUE);
+    MoveWindow(outputEdit, m + 94, 96, w - 2 * m - 378, 28, TRUE);
+    position(OPENOUTPUT, w - m - 274, 96, 170, 28);
     position(BROWSEOUTPUT, w - m - 94, 96, 94, 28);
     position(203, m, 148, 60, 22);
     MoveWindow(searchEdit, m + 64, 143, w - 2 * m - 284, 30, TRUE);
@@ -291,6 +293,7 @@ struct Completion {
     size_t succeeded = 0, failed = 0, records = 0;
     bool cancelled = false;
     std::string details;
+    fs::path output;
 };
 static void exporting() {
     std::vector<Run> chosen;
@@ -328,6 +331,7 @@ static void exporting() {
     SetWindowTextW(statusLabel, L"Exporting... Files appear after each run finishes.");
     worker = std::thread([chosen = std::move(chosen), output, format] {
         auto result = new Completion;
+        result->output = output;
         try {
             for (size_t i = 0; i < chosen.size(); ++i) {
                 if (cancelled) {
@@ -379,6 +383,8 @@ static LRESULT CALLBACK windowProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         outputEdit = control(L"EDIT", (executableDir / L"Exports").c_str(),
                              WS_TABSTOP | ES_AUTOHSCROLL, OUTPUT);
         button(L"Browse...", BROWSEOUTPUT);
+        button(L"Open export folder", OPENOUTPUT);
+        EnableWindow(GetDlgItem(h, OPENOUTPUT), FALSE);
         auto savedOutput = setting(L"OutputPath");
         if (!savedOutput.empty())
             SetWindowTextW(outputEdit, savedOutput.c_str());
@@ -472,6 +478,17 @@ static LRESULT CALLBACK windowProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 SetWindowTextW(outputEdit, p.c_str());
                 saveSettings();
             }
+        } else if (id == OPENOUTPUT && !lastExportDir.empty()) {
+            try {
+                if (!fs::is_directory(lastExportDir))
+                    throw std::runtime_error("The export folder is no longer available");
+                auto result = ShellExecuteW(h, L"open", lastExportDir.c_str(), nullptr, nullptr,
+                                            SW_SHOWNORMAL);
+                if ((INT_PTR)result <= 32)
+                    throw std::runtime_error("Cannot open the export folder in Windows Explorer");
+            } catch (const std::exception &e) {
+                error(e);
+            }
         } else if (id == FORMAT && HIWORD(wp) == CBN_SELCHANGE) {
             exportFormat = SendMessageW(formatCombo, CB_GETCURSEL, 0, 0) == 0 ? ExportFormat::Xlsx
                                                                               : ExportFormat::Csv;
@@ -538,6 +555,9 @@ static LRESULT CALLBACK windowProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         for (auto a : actions)
             EnableWindow(a, TRUE);
         EnableWindow(GetDlgItem(h, CANCEL), FALSE);
+        if (r->succeeded)
+            lastExportDir = r->output;
+        EnableWindow(GetDlgItem(h, OPENOUTPUT), !lastExportDir.empty());
         EnableWindow(sourceEdit, TRUE);
         EnableWindow(outputEdit, TRUE);
         EnableWindow(searchEdit, TRUE);
