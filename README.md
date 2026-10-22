@@ -10,7 +10,7 @@ A portable Windows app that exports FLUOstar OMEGA measurements to Excel or CSV.
 4. Choose **Export to**. The default is an `Exports` folder beside the executable.
 5. Choose **Excel (.xlsx)** or **CSV (.csv)** under **Format**, select runs, and click **Export selected to XLSX** or **Export selected to CSV**.
 
-The **Measurement type** column shows **Kinetic** for protocols with multiple stored cycles or **Single measurement** for one cycle. This describes the cycles stored in each individual run. Script names and ID comments do not affect this classification. A script that repeats a single-cycle protocol still produces individual **Single measurement** entries; the exporter exports those entries separately. Missing or invalid cycle counts show **Measurement type unknown**. These labels are also searchable and included as separate measurement-type metadata in exports. **Technique** shows the measurement method.
+The **Measurement type** column shows **Kinetic assay** for protocols with multiple stored cycles or **Single point assay** for one cycle. This describes the cycles stored in each individual run. Script names and ID comments do not affect this classification. A script that repeats a single-cycle protocol still produces individual **Single point assay** entries; the exporter exports those entries separately. Missing or invalid cycle counts show **Measurement type unknown**. These labels are also searchable and included as separate measurement-type metadata in exports. **Technique** shows the measurement method.
 
 Click a row to select it. **Shift-click** selects a range; **Ctrl-click** adds or removes individual rows. **Select all**, or **Ctrl+A** with the run list focused, selects all visible runs. **Clear** clears the selection. Search covers every displayed column, and clicking a column heading sorts the list. Only highlighted, visible runs are exported. The run list remains scrollable during and after export. The selected runs are captured when you click Export. **Refresh** reloads the database after new runs finish.
 
@@ -114,13 +114,13 @@ The LLVM i686 runtime requires LLVM's linker; GNU ld is not supported by this bu
 
 ### GitHub Actions
 
-[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.3`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
+[The build workflow](.github/workflows/build.yml) runs on pushes, pull requests, and manual dispatch. It compiles and packages the Windows app on both Ubuntu 22.04 and Windows Server 2022, runs the core regression checks against a generated synthetic database, and uploads a portable ZIP from each build. Download the desired artifact from the workflow run's **Artifacts** section. Pushing a tag beginning with `v`, such as `v1.3.1`, also publishes a GitHub Release after both builds and their tests succeed. The release includes the Windows-built portable ZIP, a SHA-256 checksum for the ZIP, and generated release notes. The ZIP itself contains a checksum for the executable. Normal branch pushes, pull requests, and manual runs produce workflow artifacts only.
 
 To publish a version, first commit and push your changes, then tag that commit:
 
 ```sh
-git tag v1.3
-git push origin v1.3
+git tag v1.3.1
+git push origin v1.3.1
 ```
 
 Use a new version tag for each release and update `src/app.rc` to match the release version before committing.

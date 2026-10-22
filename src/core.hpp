@@ -171,7 +171,7 @@ inline std::string measurementKind(const Table &table, const Row &row) {
         cycles = std::min(2U, cycles + count);
     }
     return !known || cycles == 0 ? "Measurement type unknown"
-           : cycles > 1 ? "Kinetic" : "Single measurement";
+           : cycles > 1 ? "Kinetic assay" : "Single point assay";
 }
 inline std::string timestamp(std::string d, std::string t) {
     if (d.size() == 8)
